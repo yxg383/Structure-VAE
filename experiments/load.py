@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 import numpy.random as npr
-import cPickle as pickle
+import pickle as pickle
 import gzip
 import h5py
 import operator as op
@@ -10,7 +10,7 @@ import operator as op
 partial_flatten = lambda x: np.reshape(x, (x.shape[0], -1))
 
 dmap = lambda dct, f=lambda x: x, keep=lambda x: True: \
-    {k:f(v) for k, v in dct.iteritems() if keep(k)}
+    {k:f(v) for k, v in dct.items() if keep(k)}
 
 def standardize(d):
     recenter = lambda d: d - np.percentile(d, 0.01)
@@ -18,7 +18,7 @@ def standardize(d):
     return rescale(recenter(d))
 
 def flatten_dict(dct):
-    data = map(op.itemgetter(1), sorted(dct.items(), key=op.itemgetter(0)))
+    data = list(map(op.itemgetter(1), sorted(dct.items(), key=op.itemgetter(0))))
     return np.concatenate(data)
 
 def load(filename):
@@ -28,7 +28,7 @@ def load(filename):
     return datadict
 
 def load_mice(N, file, labelfile=None, addnoise=True, keep=lambda x: True):
-    print 'loading data from {}...'.format(file)
+    print('loading data from {}...'.format(file))
     if labelfile is None:
         data = _load_mice(N, file, keep)
     else:
@@ -37,7 +37,7 @@ def load_mice(N, file, labelfile=None, addnoise=True, keep=lambda x: True):
     if addnoise:
         data += 1e-3 * npr.normal(size=data.shape)
 
-    print '...done loading {} frames!'.format(len(data))
+    print('...done loading {} frames!'.format(len(data)))
     if labelfile:
         return data, labels
     return data
@@ -58,8 +58,8 @@ def _load_mice_withlabels(N, file, labelfile, keep):
 
     merged_dict = {name: truncate(datadict[name], stateseqs_dict[name][-1])
                     for name in stateseqs_dict}
-    pairs = map(op.itemgetter(1), sorted(merged_dict.items(), key=op.itemgetter(0)))
-    data, labels = map(np.concatenate, zip(*pairs))
+    pairs = list(map(op.itemgetter(1), sorted(merged_dict.items(), key=op.itemgetter(0))))
+    data, labels = list(map(np.concatenate, zip(*pairs)))
     data, labels = partial_flatten(data[:N]), labels[:N]
 
     _, labels = np.unique(labels, return_inverse=True)
@@ -74,7 +74,7 @@ def load_vae_init(zdim, file, eps=1e-5):
     (W_1, b_1), decoder_nnet_params = decoder_params[0], decoder_params[1:]
 
     if zdim < W_h.shape[1]:
-        raise ValueError, 'initialization zdim must not be greater than svae model zdim'
+        raise ValueError('initialization zdim must not be greater than svae model zdim')
     elif zdim > W_h.shape[1]:
         padsize = zdim - W_h.shape[1]
         pad = lambda W, b: \
@@ -86,8 +86,8 @@ def load_vae_init(zdim, file, eps=1e-5):
         pad = lambda W, b: (np.vstack((eps*npr.randn(padsize, W.shape[1]), W)), b)
         decoder_params = [pad(W_1, b_1)] + decoder_nnet_params
 
-        print 'loaded init from {} and padded by {} dimensions'.format(file, padsize)
+        print('loaded init from {} and padded by {} dimensions'.format(file, padsize))
         return encoder_params, decoder_params
 
-    print 'loaded init from {}'.format(file)
+    print('loaded init from {}'.format(file))
     return encoder_params, decoder_params

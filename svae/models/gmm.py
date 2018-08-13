@@ -90,7 +90,7 @@ def local_meanfield(global_natparam, node_potentials):
 def meanfield_fixed_point(label_global, gaussian_globals, node_potentials, tol=1e-3, max_iter=100):
     kl = np.inf
     label_stats = initialize_meanfield(label_global, node_potentials)
-    for i in xrange(max_iter):
+    for i in range(max_iter):
         gaussian_natparam, gaussian_stats, gaussian_kl = \
             gaussian_meanfield(gaussian_globals, node_potentials, label_stats)
         label_natparam, label_stats, label_kl = \
@@ -105,7 +105,7 @@ def meanfield_fixed_point(label_global, gaussian_globals, node_potentials, tol=1
         if abs(kl - prev_kl) < tol:
             break
     else:
-        print 'iteration limit reached'
+        print('iteration limit reached')
 
     return label_stats
 
@@ -131,7 +131,7 @@ def initialize_meanfield(label_global, node_potentials):
 
 def make_plotter_2d(recognize, decode, data, num_clusters, params, plot_every):
     import matplotlib.pyplot as plt
-    if data.shape[1] != 2: raise ValueError, 'make_plotter_2d only works with 2D data'
+    if data.shape[1] != 2: raise ValueError('make_plotter_2d only works with 2D data')
 
     fig, (observation_axis, latent_axis) = plt.subplots(1, 2, figsize=(8,4))
     encode_mean, decode_mean = make_encoder_decoder(recognize, decode)
@@ -174,7 +174,7 @@ def make_plotter_2d(recognize, decode, data, num_clusters, params, plot_every):
         dirichlet_natparams, niw_natparams = pgm_params
         normalize = lambda arr: np.minimum(1., arr / np.sum(arr) * num_clusters)
         weights = normalize(np.exp(dirichlet.expectedstats(dirichlet_natparams)))
-        components = map(get_component, niw.expectedstats(niw_natparams))
+        components = list(map(get_component, niw.expectedstats(niw_natparams)))
         lines = repeat(None) if isinstance(ax, plt.Axes) else ax
         for weight, (mu, Sigma), line in zip(weights, components, lines):
             plot_ellipse(ax, weight, mu, Sigma, line)

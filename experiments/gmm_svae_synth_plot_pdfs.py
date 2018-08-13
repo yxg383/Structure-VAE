@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 import numpy.random as npr
-import cPickle as pickle
+import pickle as pickle
 import matplotlib.pyplot as plt
 from itertools import count
 from cycler import cycler
@@ -10,7 +10,7 @@ from scipy.stats import norm
 from operator import itemgetter
 from functools import partial
 
-from gmm_svae_synth import decode as gmm_decode, make_pinwheel_data, normalize, \
+from .gmm_svae_synth import decode as gmm_decode, make_pinwheel_data, normalize, \
     dirichlet, niw, encode_mean, decode_mean
 from svae.forward_models import mlp_decode
 mlp_decode = partial(mlp_decode, tanh_scale=1000., sigmoid_output=False)
@@ -95,7 +95,7 @@ def plot(axs, data, params):
 
     dir_hypers, all_niw_hypers = natparam
     weights = normalize(np.exp(dirichlet.expectedstats(dir_hypers)))
-    components = map(niw.expected_standard_params, all_niw_hypers)
+    components = list(map(niw.expected_standard_params, all_niw_hypers))
 
     latent_locations = encode_mean(data, natparam, psi)
     reconstruction = decode_mean(latent_locations, phi)
@@ -144,7 +144,7 @@ def make_figure():
 def save_figure(fig, filename):
     fig.savefig(filename + '.png', dpi=300, bbox_inches='tight', pad_inches=0)
     fig.savefig(filename + '.pdf', bbox_inches='tight', pad_inches=0)
-    print 'saved {}'.format(filename)
+    print('saved {}'.format(filename))
 
 def plot_data(data):
     fig, ax = make_figure()
@@ -204,7 +204,7 @@ def plot_gmm_svae(filename, data):
             try:
                 for _ in range(20000): gmm_svae_params = pickle.load(f)
             except EOFError: pass
-            else: print 'did not finish loading {}'.format(filename)
+            else: print('did not finish loading {}'.format(filename))
         return gmm_svae_params
 
     gmm_svae_params = load_gmm_svae_params(filename)

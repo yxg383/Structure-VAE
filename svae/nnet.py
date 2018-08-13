@@ -1,11 +1,11 @@
 from __future__ import division
 import autograd.numpy as np
 import autograd.numpy.random as npr
-from autograd.util import make_tuple
+from autograd.builtins import tuple as tuple_
 from toolz import curry
 from collections import defaultdict
 
-from util import compose, sigmoid, relu, identity, log1pexp, isarray
+from .util import compose, sigmoid, relu, identity, log1pexp, isarray
 
 
 ### util
@@ -38,13 +38,13 @@ def gaussian_mean(inputs, sigmoid_mean=False):
     mu_input, sigmasq_input = np.split(inputs, 2, axis=-1)
     mu = sigmoid(mu_input) if sigmoid_mean else mu_input
     sigmasq = log1pexp(sigmasq_input)
-    return make_tuple(mu, sigmasq)
+    return tuple_(mu, sigmasq)
 
 @curry
 def gaussian_info(inputs):
     J_input, h = np.split(inputs, 2, axis=-1)
     J = -1./2 * log1pexp(J_input)
-    return make_tuple(J, h)
+    return tuple_(J, h)
 
 
 ### multi-layer perceptrons (MLPs)
@@ -55,7 +55,7 @@ def _mlp(nonlinearities, params, inputs):
     eval_mlp = compose(layer(nonlin, W, b)
                        for nonlin, (W, b) in zip(nonlinearities, params))
     out = eval_mlp(ravel(inputs))
-    return unravel(out) if isarray(out) else map(unravel, out)
+    return unravel(out) if isarray(out) else list(map(unravel, out))
 
 def init_mlp(d_in, layer_specs, **kwargs):
     dims = [d_in] + [l[0] for l in layer_specs]
@@ -96,12 +96,12 @@ def _gresnet(mlp_type, mlp, params, inputs):
         mu_mlp, sigmasq_mlp = mlp(mlp_params, inputs)
         mu_res = unravel(np.dot(ravel(inputs), W) + b1)
         sigmasq_res = log1pexp(b2)
-        return make_tuple(mu_mlp + mu_res, sigmasq_mlp + sigmasq_res)
+        return tuple_(mu_mlp + mu_res, sigmasq_mlp + sigmasq_res)
     else:
         J_mlp, h_mlp = mlp(mlp_params, inputs)
         J_res = -1./2 * log1pexp(b2)
         h_res = unravel(np.dot(ravel(inputs), W) + b1)
-        return make_tuple(J_mlp + J_res, h_mlp + h_res)
+        return tuple_(J_mlp + J_res, h_mlp + h_res)
 
 def init_gresnet(d_in, layer_specs):
     d_out = layer_specs[-1][0] // 2

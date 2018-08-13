@@ -3,17 +3,17 @@ import autograd.numpy as np
 import autograd.numpy.random as npr
 from autograd import grad
 from autograd.convenience_wrappers import grad_and_aux as agrad, value_and_grad as vgrad
-from autograd.util import make_tuple
+from autograd.builtins import tuple as tuple_
 from autograd.core import primitive, primitive_with_aux
 from operator import itemgetter, attrgetter
 
 from svae.util import monad_runner, rand_psd, interleave, depth, uninterleave, \
     add, shape, zeros_like
-from gaussian import mean_to_natural, pair_mean_to_natural, natural_sample, \
+from .gaussian import mean_to_natural, pair_mean_to_natural, natural_sample, \
     natural_condition_on, natural_condition_on_general, natural_to_mean, \
     natural_rts_backward_step
 # from gaussian import natural_predict, natural_lognorm
-from gaussian_nochol import natural_predict, natural_lognorm
+from .gaussian_nochol import natural_predict, natural_lognorm
 
 from cython_lds_inference import \
     natural_filter_forward_general as cython_natural_filter_forward, \
@@ -22,6 +22,8 @@ from cython_lds_inference import \
     natural_sample_backward_grad as cython_natural_sample_backward_grad, \
     natural_smoother_general as cython_natural_smoother_general, \
     natural_smoother_general_grad as cython_natural_smoother_grad
+
+from functools import reduce
 
 cython_natural_filter_forward = primitive_with_aux(cython_natural_filter_forward)
 def make_natural_filter_grad_arg2(intermediates, ans, init_params, pair_params, node_params):
@@ -55,7 +57,7 @@ def _repeat_param(param, length):
     if depth(param) == 1:
         param = [param]*length
     elif len(param) != length:
-        param = zip(*param)
+        param = list(zip(*param))
     assert depth(param) == 2 and len(param) == length
     return param
 
@@ -85,7 +87,7 @@ def _canonical_node_params(node_params):
 
 def natural_filter_forward_general(init_params, pair_params, node_params):
     init_params = _canonical_init_params(init_params)
-    node_params = zip(*_canonical_node_params(node_params))
+    node_params = list(zip(*_canonical_node_params(node_params)))
     pair_params = _repeat_param(pair_params, len(node_params) - 1)
 
     def unit(J, h, logZ):
@@ -96,9 +98,9 @@ def natural_filter_forward_general(init_params, pair_params, node_params):
         new_message, term = step(messages[-1])
         return messages + [new_message], lognorm + term
 
-    condition = lambda node_param: lambda (J, h): natural_condition_on_general(J, h, *node_param)
-    predict = lambda pair_param: lambda (J, h): natural_predict(J, h, *pair_param)
-    steps = interleave(map(condition, node_params), map(predict, pair_params))
+    condition = lambda node_param: lambda J, h: natural_condition_on_general(J, h, *node_param)
+    predict = lambda pair_param: lambda J, h: natural_predict(J, h, *pair_param)
+    steps = interleave(list(map(condition, node_params)), list(map(predict, pair_params)))
 
     messages, lognorm = monad_runner(bind)(unit(*init_params), steps)
     lognorm += natural_lognorm(*messages[-1])
@@ -109,14 +111,14 @@ def natural_filter_forward_general(init_params, pair_params, node_params):
 def natural_sample_backward_general(forward_messages, pair_params, num_samples=None):
     filtered_messages = forward_messages[1::2]
     pair_params = _repeat_param(pair_params, len(filtered_messages) - 1)
-    pair_params = map(itemgetter(0, 1), pair_params)
+    pair_params = list(map(itemgetter(0, 1), pair_params))
 
     unit = lambda sample: [sample]
     bind = lambda result, step: [step(result[0])] + result
 
-    sample = lambda (J11, J12), (J_filt, h_filt): lambda next_sample: \
+    sample = lambda J11, J12, J_filt, h_filt: lambda next_sample: \
         natural_sample(*natural_condition_on(J_filt, h_filt, next_sample, J11, J12))
-    steps = reversed(map(sample, pair_params, filtered_messages[:-1]))
+    steps = reversed(list(map(sample, pair_params, filtered_messages[:-1])))
 
     last_sample = natural_sample(*filtered_messages[-1], num_samples=num_samples)
     samples = monad_runner(bind)(unit(last_sample), steps)
@@ -129,22 +131,22 @@ def natural_smoother_general(forward_messages, init_params, pair_params, node_pa
     inhomog = depth(pair_params) == 2
     T = len(prediction_messages)
     pair_params, orig_pair_params = _repeat_param(pair_params, T-1), pair_params
-    node_params = zip(*_canonical_node_params(node_params))
+    node_params = list(zip(*_canonical_node_params(node_params)))
 
     def unit(filtered_message):
         J, h = filtered_message
         mu, Sigma = natural_to_mean(filtered_message)
         ExxT = Sigma + np.outer(mu, mu)
-        return make_tuple(J, h, mu), [(mu, ExxT, 0.)]
+        return tuple_(J, h, mu), [(mu, ExxT, 0.)]
 
     def bind(result, step):
         next_smooth, stats = result
         J, h, (mu, ExxT, ExxnT) = step(next_smooth)
-        return make_tuple(J, h, mu), [(mu, ExxT, ExxnT)] + stats
+        return tuple_(J, h, mu), [(mu, ExxT, ExxnT)] + stats
 
     rts = lambda next_pred, filtered, pair_param: lambda next_smooth: \
         natural_rts_backward_step(next_smooth, next_pred, filtered, pair_param)
-    steps = reversed(map(rts, prediction_messages[1:], filter_messages[:-1], pair_params))
+    steps = reversed(list(map(rts, prediction_messages[1:], filter_messages[:-1], pair_params)))
 
     _, expected_stats = monad_runner(bind)(unit(filter_messages[-1]), steps)
 
@@ -167,13 +169,13 @@ def natural_smoother_general(forward_messages, init_params, pair_params, node_pa
             return ExxT, mu, 1.
 
     E_init_stats = make_init_stats(expected_stats[0])
-    E_pair_stats = map(make_pair_stats, expected_stats[:-1], expected_stats[1:])
-    E_node_stats = map(make_node_stats, expected_stats)
+    E_pair_stats = list(map(make_pair_stats, expected_stats[:-1], expected_stats[1:]))
+    E_node_stats = list(map(make_node_stats, expected_stats))
 
     if not inhomog:
         E_pair_stats = reduce(add, E_pair_stats, zeros_like(orig_pair_params))
 
-    E_node_stats = map(np.array, zip(*E_node_stats))
+    E_node_stats = list(map(np.array, list(zip(*E_node_stats))))
 
     return E_init_stats, E_pair_stats, E_node_stats
 
@@ -211,7 +213,7 @@ def natural_lds_inference_general_autograd(natparam, node_params, num_samples=No
             init_params, pair_params, node_params)
         return lognorm, (lognorm, forward_messages)
 
-    all_natparams = make_tuple(init_params, pair_params, node_params)
+    all_natparams = tuple_(init_params, pair_params, node_params)
     expected_stats, (lognorm, forward_messages) = agrad(lds_log_normalizer)(all_natparams)
     samples = natural_sample_backward_general(forward_messages, pair_params, num_samples)
 

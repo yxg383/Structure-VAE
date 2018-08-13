@@ -1,6 +1,6 @@
 import numpy as np
 import os
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import gzip
 import struct
 import array
@@ -13,7 +13,7 @@ def download(url, filename):
         os.makedirs('data')
     out_file = os.path.join('data', filename)
     if not os.path.isfile(out_file):
-        urllib.urlretrieve(url, out_file)
+        urllib.request.urlretrieve(url, out_file)
 
 
 def mnist():

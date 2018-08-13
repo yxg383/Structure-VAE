@@ -37,7 +37,7 @@ def generate_data(T, mu_init, sigma_init, A, sigma_states, C, sigma_obs):
     D = np.linalg.cholesky(sigma_obs)
 
     broadcast = lambda X, T: X if X.ndim == 3 else [X]*T
-    As, Bs, Cs, Ds = map(broadcast, [A, B, C, D], [T-1, T-1, T, T])
+    As, Bs, Cs, Ds = list(map(broadcast, [A, B, C, D], [T-1, T-1, T, T]))
 
     states[0] = mu_init + np.dot(np.linalg.cholesky(sigma_init), npr.randn(n))
     data[0] = np.dot(Cs[0], states[0]) + np.dot(Ds[0], npr.randn(p))

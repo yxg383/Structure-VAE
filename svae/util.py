@@ -2,16 +2,16 @@ from __future__ import division
 import autograd.numpy as np
 import autograd.numpy.random as npr
 import autograd.scipy.linalg as spla
-from autograd.util import flatten
-from itertools import islice, imap, cycle
+from autograd.misc import flatten
+from itertools import islice, cycle
 import operator
 from functools import partial
 from toolz import curry
 
 # autograd internals
-from autograd.container_types import TupleNode, ListNode
+from autograd.builtins import SequenceBox
 from autograd.core import getval, primitive
-
+from functools import reduce
 
 ### neural nets
 
@@ -90,7 +90,7 @@ def uninterleave(lst):
 def roundrobin(*iterables):
     # Recipe credited to George Sakkis
     pending = len(iterables)
-    nexts = cycle(iter(it).next for it in iterables)
+    nexts = cycle(iter(it).__next__ for it in iterables)
     while pending:
         try:
             for next in nexts:
@@ -108,8 +108,8 @@ def get_num_datapoints(x):
 def flatmap(f, container):
     flatten = lambda lst: [item for sublst in lst for item in sublst]
     mappers = {np.ndarray: lambda f, arr: f(arr),
-                     list: lambda f, lst: flatten(map(f, lst)),
-                     dict: lambda f, dct: flatten(map(f, dct.values()))}
+                     list: lambda f, lst: flatten(list(map(f, lst))),
+                     dict: lambda f, dct: flatten(list(map(f, list(dct.values()))))}
     return mappers[type(container)](f, container)
 
 @curry
@@ -121,24 +121,24 @@ def split_into_batches(data, seq_len, num_seqs=None, permute=True):
     batches = npr.permutation(flatmap(split_array(length=seq_len), data))
     if num_seqs is None:
         return batches, len(batches)
-    chunks = (batches[i*num_seqs:(i+1)*num_seqs] for i in xrange(len(batches) // num_seqs))
-    return imap(np.stack, chunks), len(batches) // num_seqs
+    chunks = (batches[i*num_seqs:(i+1)*num_seqs] for i in range(len(batches) // num_seqs))
+    return map(np.stack, chunks), len(batches) // num_seqs
 
 
 ### basic math on (nested) tuples
 
-istuple = lambda x: isinstance(x, (tuple, TupleNode, list, ListNode))
+istuple = lambda x: isinstance(x, (tuple, list, SequenceBox))
 ensuretuple = lambda x: x if istuple(x) else (x,)
-concat = lambda *args: reduce(operator.add, map(ensuretuple, args))
+concat = lambda *args: reduce(operator.add, list(map(ensuretuple, args)))
 inner = lambda a, b: np.dot(np.ravel(a), np.ravel(b))
 
 Y = lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))
 make_unop = lambda op, combine: \
-    Y(lambda f: lambda a: op(a) if not istuple(a) else combine(map(f, a)))
+    Y(lambda f: lambda a: op(a) if not istuple(a) else combine(list(map(f, a))))
 make_scalar_op = lambda op, combine: \
-    Y(lambda f: lambda a, b : op(a, b)  if not istuple(b) else combine(map(partial(f, a), b)))
+    Y(lambda f: lambda a, b : op(a, b)  if not istuple(b) else combine(list(map(partial(f, a), b))))
 make_binop = lambda op, combine: \
-    Y(lambda f: lambda a, b: op(a, b) if not istuple(a) else combine(map(f, a, b)))
+    Y(lambda f: lambda a, b: op(a, b) if not istuple(a) else combine(list(map(f, a, b))))
 
 def add_binop_size_check(binop):
     def wrapped(a, b):
@@ -171,4 +171,4 @@ rand_dir_like = lambda x: scale(1./norm(x), randn_like(x))
 
 isobjarray = lambda x: isinstance(x, np.ndarray) and x.dtype == np.object
 tuplify = Y(lambda f: lambda a: a if not istuple(a) and not isobjarray(a) else tuple(map(f, a)))
-depth = Y(lambda f: lambda a: np.ndim(a) if not istuple(a) else 1+(min(map(f, a)) if len(a) else 1))
+depth = Y(lambda f: lambda a: np.ndim(a) if not istuple(a) else 1+(min(list(map(f, a))) if len(a) else 1))

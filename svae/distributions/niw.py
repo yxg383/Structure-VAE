@@ -2,11 +2,11 @@ from __future__ import division
 import autograd.numpy as np
 from autograd.scipy.special import multigammaln, digamma
 from autograd import grad
-from autograd.util import make_tuple
+# from autograd.util import make_tuple
 
 from svae.util import symmetrize, outer
-from gaussian import pack_dense, unpack_dense
-import mniw  # niw is a special case of mniw
+from .gaussian import pack_dense, unpack_dense
+from . import mniw  # niw is a special case of mniw
 
 # NOTE: can compute Cholesky then avoid the other cubic computations,
 # but numpy/scipy has no dpotri or solve_triangular that broadcasts

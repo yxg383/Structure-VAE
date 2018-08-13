@@ -2,7 +2,7 @@ from __future__ import division, print_function
 import autograd.numpy as np
 import autograd.numpy.random as npr
 from autograd import grad
-from autograd.util import make_tuple
+from autograd.builtins import tuple as tuple_
 from functools import partial
 import sys
 
@@ -72,7 +72,7 @@ def make_lds_global_natparams(num_states, state_dim, random=False):
     niw_natparams = [make_niw_natparam(state_dim) for _ in range(num_states)]
     mniw_natparams = [make_mniw_natparam(state_dim) for _ in range(num_states)]
 
-    return zip(niw_natparams, mniw_natparams)
+    return list(zip(niw_natparams, mniw_natparams))
 
 
 ### lds
@@ -84,8 +84,8 @@ def lds_meanfield(lds_global_natparams, node_potentials, hmm_expected_stats):
 
 
 def get_all_lds_local_natparams(lds_global_natparams):
-    lds_params = map(lds_prior_expectedstats, lds_global_natparams)
-    init_params, pair_params = zip(*lds_params)
+    lds_params = list(map(lds_prior_expectedstats, lds_global_natparams))
+    init_params, pair_params = list(zip(*lds_params))
     return init_params, pair_params
 
 
@@ -93,12 +93,12 @@ def get_var_lds_local_natparam(lds_global_natparams, hmm_expected_stats):
     _, _, expected_states = hmm_expected_stats
     all_init_params, all_pair_params = get_all_lds_local_natparams(lds_global_natparams)
 
-    dense_init_params = map(np.stack, zip(*all_init_params))
-    dense_pair_params = map(np.stack, zip(*all_pair_params))
+    dense_init_params = list(map(np.stack, list(zip(*all_init_params))))
+    dense_pair_params = list(map(np.stack, list(zip(*all_pair_params))))
 
     contract = lambda a: lambda b: np.tensordot(a, b, axes=1)
-    init_param = map(contract(expected_states[0]), dense_init_params)
-    pair_params = map(contract(expected_states[1:]), dense_pair_params)
+    init_param = list(map(contract(expected_states[0]), dense_init_params))
+    pair_params = list(map(contract(expected_states[1:]), dense_pair_params))
 
     return init_param, pair_params
 
@@ -123,7 +123,7 @@ def hmm_prior_expectedstats(natparam):
     dir_natparam, mdir_natparam = natparam
 
     init_params = dirichlet.expectedstats(dir_natparam)
-    pair_params = np.array(map(dirichlet.expectedstats, mdir_natparam))
+    pair_params = np.array(list(map(dirichlet.expectedstats, mdir_natparam)))
 
     return init_params, pair_params
 
@@ -132,15 +132,15 @@ def get_arhmm_local_nodeparams(lds_global_natparam, lds_expected_stats):
     init_stats, pair_stats = lds_expected_stats[:2]
     all_init_params, all_pair_params = get_all_lds_local_natparams(lds_global_natparam)
 
-    dense_init_params = map(np.stack, zip(*all_init_params))
-    dense_pair_params = map(np.stack, zip(*all_pair_params))
+    dense_init_params = list(map(np.stack, list(zip(*all_init_params))))
+    dense_pair_params = list(map(np.stack, list(zip(*all_pair_params))))
 
     partial_contract = lambda a: lambda b: contract(a, b)
-    init_node_potential = np.array(map(partial_contract(init_stats), all_init_params))
+    init_node_potential = np.array(list(map(partial_contract(init_stats), all_init_params)))
 
     partial_contract = lambda a: lambda b: \
         sum(np.tensordot(x, y, axes=np.ndim(y)) for x, y in zip(a,b))
-    remaining_node_potentials = np.vstack(map(partial_contract(pair_stats), all_pair_params)).T
+    remaining_node_potentials = np.vstack(list(map(partial_contract(pair_stats), all_pair_params))).T
 
     node_potentials = np.vstack((init_node_potential, remaining_node_potentials))
 
@@ -150,7 +150,7 @@ def get_arhmm_local_nodeparams(lds_global_natparam, lds_expected_stats):
 def get_hmm_vlb(lds_global_natparam, hmm_local_natparam, lds_expected_stats):
     init_params, pair_params, _ = hmm_local_natparam
     node_params = get_arhmm_local_nodeparams(lds_global_natparam, lds_expected_stats)
-    local_natparam = make_tuple(init_params, pair_params, node_params)
+    local_natparam = tuple_(init_params, pair_params, node_params)
     return hmm_logZ(local_natparam)
 
 
@@ -162,7 +162,7 @@ def optimize_local_meanfield(global_natparam, node_potentials, tol=1e-2):
     lds_stats = initialize_local_meanfield(node_potentials)
     local_vlb = -np.inf
 
-    for _ in xrange(100):
+    for _ in range(100):
         hmm_natparam, hmm_stats, hmm_vlb = hmm_meanfield(hmm_global, lds_global, lds_stats)
         lds_natparam, lds_stats, lds_vlb = lds_meanfield(lds_global, node_potentials, hmm_stats)
 
@@ -181,7 +181,7 @@ def optimize_local_meanfield_withlabels(global_natparam, node_potentials, labels
 
     def count_transitions(labels):
         return np.vstack(
-            [np.bincount(labels[1:][labels[:-1] == i], minlength=N) for i in xrange(N)])
+            [np.bincount(labels[1:][labels[:-1] == i], minlength=N) for i in range(N)])
 
     def indicators(labels):
         return np.eye(N)[labels]
@@ -209,9 +209,9 @@ def initialize_local_meanfield(node_potentials):
         get_pair_stats = lambda x1, x2: (out(x1, x1), out(x1, x2), out(x2, x2), 1.)
 
         init_stats = get_init_stats(sampled_states[0])
-        pair_stats = map(get_pair_stats, sampled_states[:-1], sampled_states[1:])
+        pair_stats = list(map(get_pair_stats, sampled_states[:-1], sampled_states[1:]))
 
-        return init_stats, map(np.array, zip(*pair_stats))
+        return init_stats, list(map(np.array, list(zip(*pair_stats))))
 
     # construct random walk natparam
     N = node_potentials[0].shape[1]
@@ -236,9 +236,9 @@ def get_global_stats(hmm_stats, lds_stats):
 
         contract = lambda w: lambda p: np.tensordot(w, p, axes=1)
         global_init_stats = tuple(scale(w, init_stats) for w in expected_states[0])
-        global_pair_stats = tuple(map(contract(w), pair_stats) for w in expected_states[1:].T)
+        global_pair_stats = tuple(list(map(contract(w), pair_stats)) for w in expected_states[1:].T)
 
-        return zip(global_init_stats, global_pair_stats)
+        return list(zip(global_init_stats, global_pair_stats))
 
     return get_hmm_global_stats(hmm_stats), get_lds_global_stats(hmm_stats, lds_stats)
 
@@ -281,7 +281,7 @@ def slds_prior_expectedstats(global_natparam):
         return dirichlet.expectedstats(dirichlet_natparams), \
             dirichlet.expectedstats(mdirichlet_natparams)  # broadcasts on rows
 
-    return hmm_prior_expectedstats(hmm_natparam), map(lds_prior_expectedstats, lds_natparams)
+    return hmm_prior_expectedstats(hmm_natparam), list(map(lds_prior_expectedstats, lds_natparams))
 
 
 ### combined inference function for svae

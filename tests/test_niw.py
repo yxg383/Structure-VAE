@@ -25,7 +25,7 @@ def test_param_conversion():
         natparam2 = standard_to_natural(*natural_to_standard(natparam))
         assert np.allclose(natparam, natparam2)
 
-    for _ in xrange(5):
+    for _ in range(5):
         n, k = npr.randint(1, 5), npr.randint(1, 3)
         yield check_params, rand_natparam(n, k)
 
@@ -37,6 +37,6 @@ def test_expectedstats_autograd():
         E_stats2 = grad(logZ)(natparam)
         assert np.allclose(E_stats1, E_stats2)
 
-    for _ in xrange(20):
+    for _ in range(20):
         n, k = npr.randint(1, 5), npr.randint(1, 3)
         yield check_expectedstats, rand_natparam(n, k)
